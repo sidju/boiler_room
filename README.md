@@ -29,6 +29,10 @@ converted into a correct `Response` and where routing is a tree structure.
     All in all resulting in a match tree structure matching the modules.
 
 ## How to use:
+### Change license:
+- Replace `LICENSE.md`
+- Change `license` field in `Cargo.toml`
+
 ### Adding crates:
 - Add to `Cargo.toml`
 - Add relevant error types to `error.rs`
