@@ -1,0 +1,21 @@
+[package]
+name = "repeat"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotenv = "0.15"
+# Web serving framework
+hyper = { version = "0.14", features = ["full"] }
+# Multithreaded/asynchronous runtime (version controlled by hyper)
+tokio = { version = "*", features = ["full"] }
+# Helpers for asynchronous programming (version controlled by hyper)
+futures = "*"
+# Serialization (syntax versions set by main lib)
+serde = { version = "1.0", features = ["derive"]}
+serde_json = "*"
+serde_urlencoded = "*"
+# Mongodb
+mongodb = "2.3"
