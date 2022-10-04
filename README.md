@@ -50,3 +50,10 @@ choice. Either you create multiple matches to get to the path you want, or you
 throw out my routing design in favour of the classic full-path matching.
 Especially consider if your path structure is more continuous than not. If more
 not, my  tree routing is not for you.
+
+## License
+Licensed under either of these:
+   - The Unlicense ([LICENSE-UNLICENSE](LICENSE-UNLICENSE.md) or
+     https://unlicense.org/)
+   - CC0 license ([LICENSE-CC0](LICENSE-CC0.md) or 
+     https://creativecommons.org/publicdomain/zero/1.0/)
