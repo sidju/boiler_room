@@ -41,6 +41,10 @@ async fn run_server(
   //   that Fn::Return is a Service
   //   Since we can create that from a closure, we can bind in variables to
   //   all created Services
+  // - The Services defined match the expected APIs for Tower, so you can use
+  //   their pre-routing filters and middlewares. For example you can wrap
+  //   the inner service_fn output using tower::Layer::layer, or combine
+  //   layers onto a service using tower::builder::ServiceBuilder.
   let make_service = make_service_fn(|_conn| async move {
     Ok::<_, Infallible>(service_fn(move |req| handle_request(state, req)))
   });
