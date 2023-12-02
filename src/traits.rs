@@ -1,5 +1,5 @@
-pub type Response = hyper::Response<hyper::Body>;
-pub type Request = hyper::Request<hyper::Body>;
+pub type Response = hyper::Response<http_body_util::Full<hyper::body::Bytes>>;
+pub type Request = hyper::Request<hyper::body::Incoming>;
 
 pub trait Reply {
   fn into_response(self) -> Response;

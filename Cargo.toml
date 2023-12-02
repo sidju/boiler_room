@@ -1,20 +1,40 @@
 [package]
 name = "boiler_room"
 version = "0.1.0"
-edition = "2021"
 license = "Unlicense"
+edition = "2021"
 
 [dependencies]
-dotenv = "0.15"
+dotenvy = "*"
 # Web serving framework
-hyper = { version = "0.14", features = ["full"] }
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http-body-util = "0.1"
 # Multithreaded/asynchronous runtime (version controlled by hyper)
-tokio = { version = "*", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 # Helpers for asynchronous programming (version controlled by hyper)
 futures = "*"
 # Serialization (syntax versions set by main lib)
-serde = { version = "1.0", features = ["derive"]}
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "*"
 serde_urlencoded = "*"
-# Mongodb
-mongodb = "2.3"
+# SQL database driver
+sqlx = { version = "0.7", features = [
+  # Runtime configuration
+  "runtime-tokio",
+  "tls-rustls",
+  # Enable features
+  "macros",
+  "migrate",
+  "postgres",
+  # Add non-standard data format support
+  "time",
+  "json"
+]}
+# Auth library
+openidconnect = { version = "3.4" }
+# Could be removed by writing a openidconnect client in hyper
+reqwest = "*"
+nanoid = "0.4"
+# And a templating library, to render html
+askama = "0.12.1"

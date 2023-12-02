@@ -1,8 +1,6 @@
 use hyper::service::{
-  make_service_fn,
   service_fn,
 };
-use hyper::Server;
 use std::net::SocketAddr;
 use std::convert::Infallible;
 
@@ -24,7 +22,7 @@ mod routes;
 #[tokio::main]
 async fn main() {
   let state = init_state().await;
-  let addr = SocketAddr::from(([0,0,0,0], 8080));
+  let addr = SocketAddr::from(([0,0,0,0], 8888));
   run_server(state, addr).await
 }
 
@@ -32,36 +30,68 @@ async fn run_server(
   state: &'static State,
   addr: SocketAddr,
 ) {
-  // Define what to do with requests
-  // - A Service is a stateful worker that responds to one request at a time.
-  //   service_fn creates a Service from a FnMut that accepts Request and 
-  //   returns a Response Future.
-  // - A "MakeService" is a Service that creates more Services.
-  //   make_service_fn is essentially the same as service_fn, but requiring
-  //   that Fn::Return is a Service
-  //   Since we can create that from a closure, we can bind in variables to
-  //   all created Services
-  // - The Services defined match the expected APIs for Tower, so you can use
-  //   their pre-routing filters and middlewares. For example you can wrap
-  //   the inner service_fn output using tower::Layer::layer, or combine
-  //   layers onto a service using tower::builder::ServiceBuilder.
-  let make_service = make_service_fn(|_conn| async move {
-    Ok::<_, Infallible>(service_fn(move |req| handle_request(state, req)))
-  });
+  // Listen on address
+  let listener = tokio::net::TcpListener::bind(addr).await
+    .expect("Failed to bind to socket")
+  ;
 
-  // Create and configure the server
-  let server = Server::bind(&addr).serve(make_service);
+  // Create whatever background tasks are needed
+  tokio::task::spawn(database_cleaner(state));
 
-  // Finally run it all (forever, probably won't ever return)
-  match server.await {
-    Ok(_) => println!("Server ran successfully"),
-    Err(e) => eprintln!("Error occured: {}", e),
+  // Loop forever, spawning a task for every request we get
+  loop {
+    let (socket, client_address) = listener.accept().await
+      .expect("Failed receive connection")
+    ;
+
+    // adapt the stream into something hyper can use
+    let io = hyper_util::rt::TokioIo::new(socket);
+    // And spawn a task to respond
+    tokio::task::spawn(async move {
+      // A state machine to:
+      // - Parse incoming HTTP request
+      // - Hand it into the given service_fn
+      // - Serialize the return from function into a HTTP response
+      if let Err(e) = hyper::server::conn::http1::Builder::new()
+        .serve_connection(io, service_fn(move |req| handle_request(state,req)))
+        .await
+      {
+        eprintln!("Error {e} when serving {client_address}!");
+      }
+    });
+  }
+}
+
+// Cleans outdated temporary state from the database every 6 hours
+async fn database_cleaner(
+  state: &'static State,
+) {
+  // Do cleanup every six hours
+  let mut interval = tokio::time::interval(std::time::Duration::from_secs(60 * 60 * 6));
+  loop {
+    interval.tick().await;
+    // Sessions
+    match sqlx::query("DELETE FROM Sessions WHERE valid_until < NOW()")
+      .execute(&state.db)
+      .await
+    {
+      Ok(r) => { println!("Cleaned {} outdated sessions.", r.rows_affected()); },
+      Err(e) => { eprintln!("Error when cleaning outdated sessions\n  error: {e}"); },
+    }
+    // Login processes older than 5 minutes are invalid anyways
+    match sqlx::query("DELETE FROM LoginProcesses WHERE creation_time < NOW() - INTERVAL '5 minutes'")
+      .execute(&state.db)
+      .await
+    {
+      Ok(r) => { println!("Cleaned {} old login processes", r.rows_affected()); },
+      Err(e) => { eprintln!("Error when cleaning outdated login procedures\n  error: {e}"); },
+    }
   }
 }
 
 // The service_fn type requires we hand out an error, but we declare one that
 // cannot exist to show that we will never return an error from here
-pub async fn handle_request(
+async fn handle_request(
   state: &'static State,
   req: Request,
 ) -> Result<Response, Infallible> {

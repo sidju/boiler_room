@@ -18,13 +18,26 @@ pub fn not_modified() -> Result<Response, Error> {
   Ok(re)
 }
 // Return given string as html
-pub fn html(
-  data: &'static str,
+pub fn html<B: Into<hyper::body::Bytes>>(
+  data: B,
 ) -> Result<Response, Error> {
-  let mut re = Response::new(data.into());
+  let mut re = Response::new(http_body_util::Full::new(data.into()));
   re.headers_mut().insert(
     "Content-Type",
     HeaderValue::from_static("text/html; charset=utf-8")
+  );
+  Ok(re)
+}
+// Redirect user to given url
+pub fn redirect(
+  target: &str,
+) -> Result<Response, Error> {
+  let mut re = Response::new("".into());
+  // Explicitly requires client to GET the given URL
+  *re.status_mut() = StatusCode::SEE_OTHER;
+  re.headers_mut().insert(
+    "Location",
+    HeaderValue::from_str(target)?,
   );
   Ok(re)
 }
@@ -57,6 +70,16 @@ pub fn set_status(
 ) -> Result<Response, Error> {
   re.map(|mut r| {
     *r.status_mut() = status;
+    r
+  })
+}
+pub fn add_header(
+  re: Result<Response, Error>,
+  header: hyper::header::HeaderName,
+  value: hyper::header::HeaderValue,
+) -> Result<Response, Error> {
+  re.map(|mut r| {
+    r.headers_mut().append(header, value);
     r
   })
 }

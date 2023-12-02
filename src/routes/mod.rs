@@ -1,10 +1,11 @@
 use hyper::header::HeaderValue;
 use hyper::{Method, StatusCode};
+use askama::Template;
 
 use crate::{
   State,
   Error,
-  Reply,
+  ClientError,
   Request,
   Response,
 };
@@ -12,6 +13,16 @@ use crate::{
 // A utils file for common operations while routing
 mod utils;
 use utils::*;
+mod auth;
+use auth::*;
+
+// And the actual route modules
+mod secure;
+
+#[derive(Template)]
+#[template(path = "index.html")]
+struct Index{
+}
 
 pub async fn route(
   state: &'static State,
@@ -42,7 +53,18 @@ pub async fn route(
       // utility function for simple paths
       verify_method_path_end(&path_vec, &req, &Method::GET)?;
       // Utility function to build html response around given str
-      html("Hello world!")
+      html(Index{}.render()?)
+    },
+    Some("post-login") => {
+      verify_method_path_end(&path_vec, &req, &Method::GET)?;
+      add_header(
+        finish_oidc_login_flow(state, req).await,
+        hyper::header::CACHE_CONTROL,
+        hyper::header::HeaderValue::from_static("no-store")
+      )
+    },
+    Some("secure") => {
+      secure::route(state, req, path_vec).await
     },
     _ => Err(Error::path_not_found(&req)),
   }

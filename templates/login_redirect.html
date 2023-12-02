@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Login redirect{% endblock %}
+
+{% block body %}
+  <p>You are not currently logged in and tried to access a secure page.</p>
+  <p><a href="{{ url }}">Click this link to log in.</a></p>
+  <p>
+    If you were submitting something your browser may warn you against possibly
+    submitting it twice.
+  <br>
+    It is safe to disregard that warning, the browser just thinks this redirect
+    means that this site has accepted your submission.
+  </p>
+{% endblock %}

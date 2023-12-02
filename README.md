@@ -27,6 +27,7 @@ converted into a correct `Response` and where routing is a tree structure.
     they have a route function that takes `state, req, path_vec` which then
     either returns a response or hands down into another route function.
     All in all resulting in a match tree structure matching the modules.
+  - `auth.rs` holds the logic for OIDC auth, example usage in `secure/mod.rs`.
 
 ## How to use:
 ### Change license:

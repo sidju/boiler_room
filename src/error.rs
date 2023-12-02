@@ -1,12 +1,7 @@
 // Needed imports
 use crate::Reply;
 use hyper::header::HeaderValue;
-use hyper::{
-  Body,
-  Request,
-  Response,
-  StatusCode,
-};
+use hyper::StatusCode;
 use serde::Serialize;
 // Public errors to wrap
 use hyper::header::ToStrError as UnreadableHeaderError;
@@ -15,20 +10,52 @@ use serde_urlencoded::de::Error as UrlEncodingError;
 use std::num::ParseIntError;
 // Private errors to wrap
 use hyper::Error as ConnectionError;
-use mongodb::error::Error as MongodbError;
+use hyper::header::InvalidHeaderValue;
+use sqlx::error::Error as SqlxError;
+use openidconnect::ClaimsVerificationError as OIDCClaimsVerificationError;
+use askama::Error as RenderingError;
+
+type OIDCRequestError = openidconnect::RequestTokenError<
+  openidconnect::reqwest::Error<reqwest::Error>,
+  openidconnect::StandardErrorResponse<openidconnect::core::CoreErrorResponseType>
+>;
+
+use crate::traits::{
+  Request,
+  Response,
+};
 
 // Error representation for internal errors
 // Prints to stderr and returns a http 500 internal error
 #[derive(Debug)]
 pub enum InternalError {
   Connection(ConnectionError),
-  Db(MongodbError),
+  InvalidHeader(InvalidHeaderValue),
+  Db(SqlxError),
+  OIDCRequestError(OIDCRequestError),
+  TamperedOIDCLogin(OIDCClaimsVerificationError),
+  RenderingError(RenderingError),
+}
+impl std::fmt::Display for InternalError {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    write!(f, "{:?}", self)
+  }
 }
 impl Reply for InternalError {
-  fn into_response(self) -> Response<Body> {
-    eprintln!("{:?}", &self);
+  fn into_response(self) -> Response {
+    eprintln!("{}", &self);
     // By using a constant instance of ClientError formatting is consistent
     ClientError::InternalError.into_response()
+  }
+}
+impl From<ConnectionError> for InternalError {
+  fn from(e: ConnectionError) -> Self {
+    InternalError::Connection(e)
+  }
+}
+impl From<SqlxError> for InternalError {
+  fn from(e: SqlxError) -> Self {
+    InternalError::Db(e)
   }
 }
 
@@ -45,6 +72,8 @@ pub enum ClientError {
   // Parsing errors
   PathDataBeforeRoot(String),
   UnreadableHeader(String),
+  UnparseableCookie(String),
+  DuplicateCookies{name: String, value: String, old_value: String},
   InvalidContentLength(String),
   InvalidContentType(String),
   InvalidJson(String),
@@ -52,10 +81,14 @@ pub enum ClientError {
   InvalidIndexPath(String),
 
   // Non-parsing user errors
-  // BadLogin, AccountLocked and similar
+  UnknownOIDCProcess, // Post-login OIDC handler did not find the OIDC login in DB
+  OIDCGaveNoToken, // Unlikely, would probably be error in OIDC provider
+  OIDCGaveNoEmail, // Probably won't happen
+
+  UserNotFound(String), // Suggests contacting the site admin to register an account
 }
 impl Reply for ClientError {
-  fn into_response(self) -> Response<Body> {
+  fn into_response(self) -> Response {
     let mut re = Response::new(
       serde_json::to_string(&self)
         .unwrap() // Only errors if self cannot be represented as json
@@ -93,10 +126,10 @@ impl Error {
   pub fn path_data_before_root(data: String) -> Self {
     ClientError::PathDataBeforeRoot(data).into()
   }
-  pub fn path_not_found(req: &Request<Body>) -> Self {
+  pub fn path_not_found(req: &Request) -> Self {
     ClientError::PathNotFound(req.uri().path().to_owned()).into()
   }
-  pub fn method_not_found(req: &Request<Body>) -> Self {
+  pub fn method_not_found(req: &Request) -> Self {
     ClientError::MethodNotFound(req.method().to_string()).into()
   }
   pub fn unauthorized() -> Self {
@@ -112,6 +145,16 @@ impl Error {
       "Error reading header {}: {}",
       header, e,
     )).into()
+  }
+  pub fn unparseable_cookie(cookie_data: &str) -> Self {
+    ClientError::UnparseableCookie(cookie_data.into()).into()
+  }
+  pub fn duplicate_cookies(name: &str, value: &str, old_value: &str) -> Self {
+    ClientError::DuplicateCookies{
+      name: name.into(),
+      value: value.into(),
+      old_value: old_value.into(),
+    }.into()
   }
 
   pub fn content_length_missing() -> Self {
@@ -149,7 +192,7 @@ impl Error {
 // Implementing Reply on this error type enables rust to convert any error into
 // the correct response to the client (with a print to stderr for internal).
 impl Reply for Error {
-  fn into_response(self) -> Response<Body> {
+  fn into_response(self) -> Response {
     match self {
       Self::InternalError(e) => e.into_response(),
       Self::ClientError(e) => e.into_response(),
@@ -184,13 +227,34 @@ impl From<ParseIntError> for Error {
     ClientError::InvalidIndexPath(format!("{}", e)).into()
   }
 }
-impl From<MongodbError> for Error {
-  fn from(e: MongodbError) -> Self {
+impl From<SqlxError> for Error {
+  fn from(e: SqlxError) -> Self {
     InternalError::Db(e).into()
   }
 }
 impl From<ConnectionError> for Error {
   fn from(e: ConnectionError) -> Self {
     InternalError::Connection(e).into()
+  }
+}
+// most likely created by an invalid redirect
+impl From<InvalidHeaderValue> for Error {
+  fn from(e: InvalidHeaderValue) -> Self {
+    InternalError::InvalidHeader(e).into()
+  }
+}
+impl From<OIDCClaimsVerificationError> for Error {
+  fn from(e: OIDCClaimsVerificationError) -> Self {
+    InternalError::TamperedOIDCLogin(e).into()
+  }
+}
+impl From<OIDCRequestError> for Error {
+  fn from(e: OIDCRequestError) -> Self {
+    InternalError::OIDCRequestError(e).into()
+  }
+}
+impl From<RenderingError> for Error {
+  fn from(e: RenderingError) -> Self {
+    InternalError::RenderingError(e).into()
   }
 }
