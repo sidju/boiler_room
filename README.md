@@ -9,6 +9,10 @@ abstracted and complex. In an attempt to make a web-backend that feels natural
 to me I wrote this boilerplate where `Result<Response,Error>` is cleanly
 converted into a correct `Response` and where routing is a tree structure.
 
+## Variants:
+- `main` branch, the original "release" for hyper 0.14 with mongodb
+- `oidc` branch, a newer variant for hyper 1.0, OIDC auth and postgres via sqlx
+
 ## Structure:
 - The `main.rs` file. Do I need to tell you? Defines running the application.
 - The `state.rs` file defines the state struct shared between async workers
